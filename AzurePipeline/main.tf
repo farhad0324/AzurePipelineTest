@@ -11,7 +11,8 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  version         = "=1.39.0"
+  subscription_id = "9b6de23d-d9d6-472e-879a-259432656f29"
 }
 
 resource "azurerm_resource_group" "rg" {

@@ -116,7 +116,7 @@ resource "azurerm_storage_account" "storage" {
 }
 
 # Create (and display) an SSH key
-resource "tls_private_key" "example_ssh" {
+resource "tls_private_key" "azurevm_ssh" {
   algorithm = "RSA"
   rsa_bits  = 4096
 }

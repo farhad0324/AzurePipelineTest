@@ -1,186 +1,135 @@
-provider "azurerm" {
-  features {}
+resource "azurerm_resource_group" "test" {
+ name     = "acctestrg"
+ location = "West US 2"
 }
 
-# Create a resource group if it doesn't exist
-resource "azurerm_resource_group" "rg" {
-  name     = data.azurerm_key_vault_secret.resourcegroupname.value
-  location = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+resource "azurerm_virtual_network" "test" {
+ name                = "acctvn"
+ address_space       = ["10.0.0.0/16"]
+ location            = azurerm_resource_group.test.location
+ resource_group_name = azurerm_resource_group.test.name
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "vnet" {
-  name                = data.azurerm_key_vault_secret.virtualnetworkname.value
-  address_space       = ["10.0.0.0/16"]
-  location            = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  resource_group_name = data.azurerm_key_vault_secret.resourcegroupname.value
-  depends_on = [azurerm_resource_group.rg]
-
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+resource "azurerm_subnet" "test" {
+ name                 = "acctsub"
+ resource_group_name  = azurerm_resource_group.test.name
+ virtual_network_name = azurerm_virtual_network.test.name
+ address_prefix       = "10.0.2.0/24"
 }
 
-# Create subnet
-resource "azurerm_subnet" "subnet" {
-  name                 = data.azurerm_key_vault_secret.subnetname.value
-  resource_group_name  = data.azurerm_key_vault_secret.resourcegroupname.value
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
-  depends_on = [azurerm_resource_group.rg]
-
+resource "azurerm_public_ip" "test" {
+ name                         = "publicIPForLB"
+ location                     = azurerm_resource_group.test.location
+ resource_group_name          = azurerm_resource_group.test.name
+ allocation_method            = "Static"
 }
 
-# Create public IPs
-resource "azurerm_public_ip" "public_ip" {
-  name                = data.azurerm_key_vault_secret.publicipname.value
-  location            = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  resource_group_name = data.azurerm_key_vault_secret.resourcegroupname.value
-  allocation_method   = "Dynamic"
-  depends_on = [azurerm_resource_group.rg]
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+resource "azurerm_lb" "test" {
+ name                = "loadBalancer"
+ location            = azurerm_resource_group.test.location
+ resource_group_name = azurerm_resource_group.test.name
+
+ frontend_ip_configuration {
+   name                 = "publicIPAddress"
+   public_ip_address_id = azurerm_public_ip.test.id
+ }
 }
 
-# Create Network Security Group and rule
-resource "azurerm_network_security_group" "nsg" {
-  name                = data.azurerm_key_vault_secret.networksecuritygroupname.value
-  location            = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  resource_group_name = data.azurerm_key_vault_secret.resourcegroupname.value
-  depends_on = [azurerm_resource_group.rg]
-
-  security_rule {
-    name                       = "SSH"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "HTTP"
-    priority                   = 1002
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "HTTPS"
-    priority                   = 1003
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  security_rule {
-    name                       = "HTTPD"
-    priority                   = 1004
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "8080"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-  
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+resource "azurerm_lb_backend_address_pool" "test" {
+ resource_group_name = azurerm_resource_group.test.name
+ loadbalancer_id     = azurerm_lb.test.id
+ name                = "BackEndAddressPool"
 }
 
-# Create network interface
-resource "azurerm_network_interface" "nic" {
-  name                = data.azurerm_key_vault_secret.networkinterfacename.value
-  location            = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  resource_group_name = data.azurerm_key_vault_secret.resourcegroupname.value
-  depends_on = [azurerm_resource_group.rg]
+resource "azurerm_network_interface" "test" {
+ count               = 2
+ name                = "acctni${count.index}"
+ location            = azurerm_resource_group.test.location
+ resource_group_name = azurerm_resource_group.test.name
 
-  ip_configuration {
-    name                          = "myNicConfiguration"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.public_ip.id
-  }
-
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+ ip_configuration {
+   name                          = "testConfiguration"
+   subnet_id                     = azurerm_subnet.test.id
+   private_ip_address_allocation = "dynamic"
+ }
 }
 
-# Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "association" {
-  network_interface_id      = azurerm_network_interface.nic.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+resource "azurerm_managed_disk" "test" {
+ count                = 2
+ name                 = "datadisk_existing_${count.index}"
+ location             = azurerm_resource_group.test.location
+ resource_group_name  = azurerm_resource_group.test.name
+ storage_account_type = "Standard_LRS"
+ create_option        = "Empty"
+ disk_size_gb         = "1023"
 }
 
-# Create (and display) an SSH key
-resource "tls_private_key" "azurevm" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
+resource "azurerm_availability_set" "avset" {
+ name                         = "avset"
+ location                     = azurerm_resource_group.test.location
+ resource_group_name          = azurerm_resource_group.test.name
+ platform_fault_domain_count  = 2
+ platform_update_domain_count = 2
+ managed                      = true
 }
 
-# Create virtual machine
-resource "azurerm_linux_virtual_machine" "linuxvm" {
-  name                  = data.azurerm_key_vault_secret.linuxvirtualmachinename.value
-  location              = data.azurerm_key_vault_secret.resourcegrouplocation.value
-  resource_group_name   = data.azurerm_key_vault_secret.resourcegroupname.value
-  network_interface_ids = [azurerm_network_interface.nic.id]
-  size                  = "Standard_DS1_v2"
-  depends_on = [azurerm_resource_group.rg]
+resource "azurerm_virtual_machine" "test" {
+ count                 = 2
+ name                  = "acctvm${count.index}"
+ location              = azurerm_resource_group.test.location
+ availability_set_id   = azurerm_availability_set.avset.id
+ resource_group_name   = azurerm_resource_group.test.name
+ network_interface_ids = [element(azurerm_network_interface.test.*.id, count.index)]
+ vm_size               = "Standard_DS1_v2"
 
-  os_disk {
-    name                 = "myOsDisk"
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
+ # Uncomment this line to delete the OS disk automatically when deleting the VM
+ # delete_os_disk_on_termination = true
 
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
-  }
+ # Uncomment this line to delete the data disks automatically when deleting the VM
+ # delete_data_disks_on_termination = true
 
-  computer_name                   = "myvm"
-  admin_username                  = "azureuser"
-  disable_password_authentication = true
+ storage_image_reference {
+   publisher = "Canonical"
+   offer     = "UbuntuServer"
+   sku       = "16.04-LTS"
+   version   = "latest"
+ }
 
-  admin_ssh_key {
-    username   = "azureuser"
-    public_key = tls_private_key.azurevm.public_key_openssh
-  }
-  tags = {
-    Creater = data.azurerm_key_vault_secret.tags.value
-    Environment = data.azurerm_key_vault_secret.tagenv.value
-    Purpose = data.azurerm_key_vault_secret.tagpur.value
-  }
+ storage_os_disk {
+   name              = "myosdisk${count.index}"
+   caching           = "ReadWrite"
+   create_option     = "FromImage"
+   managed_disk_type = "Standard_LRS"
+ }
+
+ # Optional data disks
+ storage_data_disk {
+   name              = "datadisk_new_${count.index}"
+   managed_disk_type = "Standard_LRS"
+   create_option     = "Empty"
+   lun               = 0
+   disk_size_gb      = "1023"
+ }
+
+ storage_data_disk {
+   name            = element(azurerm_managed_disk.test.*.name, count.index)
+   managed_disk_id = element(azurerm_managed_disk.test.*.id, count.index)
+   create_option   = "Attach"
+   lun             = 1
+   disk_size_gb    = element(azurerm_managed_disk.test.*.disk_size_gb, count.index)
+ }
+
+ os_profile {
+   computer_name  = "hostname"
+   admin_username = "testadmin"
+   admin_password = "Password1234!"
+ }
+
+ os_profile_linux_config {
+   disable_password_authentication = false
+ }
+
+ tags = {
+   environment = "staging"
+ }
 }
